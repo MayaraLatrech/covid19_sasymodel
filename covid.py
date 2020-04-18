@@ -3,15 +3,12 @@
 """
 Created on Wed Apr 15 18:06:31 2020
 
-@author: slimane
+@author: slimane ben miled & mayara latrach
 """
 import numpy as np
 
 from scipy import stats
-
 import  scipy.integrate as integ
-
-
 import scipy.optimize as op#import minimize
 
 
@@ -42,60 +39,64 @@ np.seterr(over='ignore');
 
 from pymcmcstat import propagation as up
 
-
+from lmfit import Parameters
 
 # In[2]: Data input 
 
 
 class data:   
-    def __init__(self, contry='TUN',N=11791749, t_change =14):
+    def __init__(self,data,N=11791749, t_change =25):
         # INIT de la dabase TUN
-        self.contry=contry
+        #self.contry=contry
      
         # self.popNumbers={'Italy':60.4e6/250, 'Tunisia':630000,'France':67e6/250,'Spain':46.5e6/250}
         #Popxna=1e9/1000
-        self.dataset_contry =pd.read_excel(r'/home/slimane/biologie/corona/dataBase/TUNdataBase.xlsx')       
+        #self.dataset_contry =pd.read_excel(r'/home/slimane/biologie/corona/dataBase/TUNdataBase.xlsx')       
         
         #self.dataset_contry =pd.read_csv('/home/slimane/biologie/corona/dataBase/TUNdataBase.csv')       
          
-        self.population=N
         
-        a= self.dataset_contry['Nb_cas_journalier'].replace(np.nan, 0).values
-        self.newCases=a[np.argmin(a==False):]
+        #a= self.dataset_contry['Nb_cas_journalier'].replace(np.nan, 0).values
+        #self.newconfirmed=a[np.argmin(a==False):]
 #        self.newCases=np.flip(self.dataset_contry['cases'].values,0)
 
-        b= self.dataset_contry['retablie_journalier'].replace(np.nan, 0).values
-        self.newRecover=b[np.argmin(a==False):]
-        self.cumRecover=np.cumsum(self.newRecover)
+        #b= self.dataset_contry['retablie_journalier'].replace(np.nan, 0).values
+        #self.newRecover=b[np.argmin(a==False):]
+        #self.cumRecover=np.cumsum(self.newRecover)
 
         
 
      
-        b=self.dataset_contry['Décès_journalier'].replace(np.nan, 0).values
-        self.newDeath=b[np.argmin(a==False):]
-        self.Death=np.cumsum(self.newDeath)
+        #b=self.dataset_contry['Décès_journalier'].replace(np.nan, 0).values
+        #self.newDeath=b[np.argmin(a==False):]
+        #self.Death=np.cumsum(self.newDeath)
+        self.population=N
+        self.date = data['date']
+        self.confirmed = data['confirmed']
+        self.deaths = data['deaths']
+        self.recovered = data['recovered']
         
-    
-        self.cumCases = np.cumsum(self.newCases,0)
-        self.Cases = np.cumsum(self.newCases-self.newDeath-self.newRecover,0)
+        self.t_change = t_change
+        #self.cumCases = np.cumsum(self.newCases,0)
+        #self.Cases = np.cumsum(self.newCases-self.newDeath-self.newRecover,0)
         
-        self.ratio=self.newCases[1:len(self.newCases)]/self.newCases[0:len(self.newCases)-1]
+        #lf.ratio=self.newCases[1:len(self.newCases)]/self.newCases[0:len(self.newCases)-1]
 
-        self.date = self.dataset_contry['Dates']
+        #self.date = self.dataset_contry['Dates']
         #self.Deaths= self.dataset_contry['Deaths']
 
-        self.t_change = t_change
+
         
     def get_popnumberDatabase(self):    
         y=self.population
         return(y)
     
     def plotData(self):
-        recov = self.Total - (self.Cases -self.Deaths)
-        plt.plot(self.Cases,"b-")
-        plt.plot(self.Deaths,"r-")
-        plt.plot(recov,"g-")
-        plt.legend(["Anctive cases","Death","Recovered"])
+        #recov = self.Total - (self.Cases -self.Deaths)
+        plt.plot(self.confirmed,"b-")
+        plt.plot(self.deaths,"r-")
+        plt.plot(self.recovered,"g-")
+        plt.legend(["Confirmed cases","Deaths","Recovered"])
         plt.show()
         
     def CR(self,t, x1, x2, x3):
@@ -106,7 +107,7 @@ class data:
         
     def estimation(self):
         t_change = self.t_change
-        obs = self.cumCases[:-t_change]
+        obs = self.confirmed[:t_change]
         t_measured = list(range(len(obs)))
 
         popt, pcov = op.curve_fit(self.CR, t_measured, obs)
@@ -120,7 +121,7 @@ class data:
         
     def estimates_goodness(self):
         t_change = self.t_change
-        obs = self.Total[:-t_change]
+        obs = self.confirmed[:t_change]
         t_measured = list(range(len(obs)))
         est = self.estimation()
         x1 = est[0]
@@ -140,12 +141,19 @@ class data:
         
     def regression_report(self):
         t_change = self.t_change
-        obs = self.Total[:-t_change]
+        obs = self.confirmed[:t_change]
         t_measured = list(range(len(obs)))
         est = self.estimation()
         x3 = est[2]
-        y = np.log(obs-x3)
-        X = pd.DataFrame(t_measured)
+        y = [0]*len(obs)
+        ob = obs+x3
+        for i in range(len(y)):
+            if ob[i] >0:
+                y[i] = np.log(ob[i])
+            else:
+                y[i] = 0
+        #y = np.log(obs-x3)
+        X = pd.DataFrame(t_measured)        
         lm = linear_model.LinearRegression()
         lm.fit(X,y)
         params = np.append(lm.intercept_,lm.coef_)
@@ -166,7 +174,7 @@ class data:
         
     def get_fit(self):
         t_change = self.t_change
-        obs = self.Total[:-t_change]
+        obs = self.confirmed[:t_change]
         t_measured = list(range(len(obs)))
         est = self.estimation()
         x1 = est[0]
@@ -208,11 +216,12 @@ class data:
         x3 = est[2]
         t_model,fit,obs1 = self.get_fit()
         log_fit = [0] * len(t_model)
+        log_obs = [0]*len(obs1)   
         for i in range(len(t_model)):
             log_fit[i] = np.log(fit[i] +x3)
-
+            log_obs[i] = np.log(obs1[i])
         plt.plot(t_model, log_fit, '-', linewidth=2,  label='fitted log CR')
-        plt.scatter(t_model, np.log(obs1), marker='*', color='orange', label='log Observations')
+        plt.scatter(t_model, log_obs , marker='*', color='orange', label='log Observations')
         plt.legend()
         plt.xlim([0, max(t_model)])
         plt.ylim([0, 1.1 * max(log_fit)])
@@ -220,10 +229,10 @@ class data:
     
     def preds_CR(self):
         t_change = self.t_change
-        obs = self.Total[:-t_change]
+        obs = self.confirmed[:t_change]
         t_measured = list(range(len(obs)))
         date = self.date[len(obs):]
-        test = self.Total[len(obs):]
+        test = self.confirmed[len(obs):]
         pred = [0] * len(test)
         est = self.estimation()
         x1 = est[0]
@@ -238,13 +247,6 @@ class data:
         
         
         
-
-
-
-
-
-
-# In[94]:
 class SAsIQR:
     def __init__(self, beta=1/6, tau1=0.251, tau2=0.778, gama=1./12, mu=1/25, alpha1=.2,f=3,confinement_hour=12,efficacite_Conf=0.3,start_conf=np.infty) :
         self.beta=beta#1./10#0.01 #taux de passage de l'etat asymptomatique a infecte
@@ -255,7 +257,7 @@ class SAsIQR:
         self.mu=mu#0.4 # taux de mortalité des quarantene 
         
         self.f=f
-        self.alpha=alpha1
+        self.alpha1=alpha1
         self.alpha2=f*alpha1
         
         self.confinement_hour=confinement_hour
@@ -263,7 +265,7 @@ class SAsIQR:
         self.efficacite_Conf=efficacite_Conf # %des personne qui ne respetent pas le confinement
         
     ###################################
-    def paramEstimation(self,N,x1,x2,x3):
+    def calc_params(self,database, t_change):
         ## in this par we evaluate the parameter of the model using the method of @article{Liu2020}
         #author = {Liu, Zhihua and Magal, Pierre and Seydi, Ousmane and Webb, Glenn},
         #journal = {Biology},
@@ -271,40 +273,43 @@ class SAsIQR:
         #title = {{Understanding unreported cases in the COVID-19 epidemic outbreak in Wuhan, xna, and the importance of major public health interventions}},
         #volume = {9},
         #year = {2020}
+        #database.t_change=t_change
+        [x1,x2,x3,t0] = database.estimation()
         tau=self.tau2/self.tau1
         gama1=self.gama+self.mu   
         h0=x2*x3/self.tau1  
         ass0=h0*(x2+self.tau2+gama1)/(x2+self.tau2+self.beta*tau+gama1)
         i0= self.beta*h0/(x2+self.tau2+self.beta*tau+gama1)
-        q0=0#tau1*h0/(x2+gama1)
+        q0=self.tau1*h0/(x2+gama1)
         d0=0
         r0=0
-        s0=N-(ass0+i0+q0+d0+r0)   
+        s0=database.population-(ass0+i0+q0+d0+r0)   
         self.alpha1=(x2+self.beta+self.tau1)/((self.f*self.beta/(x2+self.tau2+gama1)+1)*s0)
         self.alpha2=self.f*self.alpha1
         #################
         #param=(beta,tau1,tau2) 
         y0=[s0,ass0,i0,q0,d0,r0]
-        return(y0)
+        res=[self.alpha1]
+        return y0, res
 
     #####################   
     def f1(self,s,ass,i,t): # taux d'infecté par un assym 
-       # start_conf=21 # the begining of the confinement in day
+       # start_conf=21 # the begining of the confinement in day       
         end_conf=np.infty # end of the confinment in day 
         tt=t-np.floor(t)
         if t>=self.start_conf and t<end_conf: # first day of confinement
+           # b=self.alpha1*np.exp(-self.efficacite_Conf*(t-self.start_conf))   
             if ( (tt>=(1-self.confinement_hour/24))):
-                b=self.alpha1*(1-self.efficacite_Conf)   
+               b=self.alpha1*(1-self.efficacite_Conf)   
             else:
-                  b=self.alpha1*0.15
+               b=self.alpha1*0.01
         else:
             b=self.alpha1
         y=float(b*s)
         return y#a*s**2/(0.0*(i+ass)+s)
 
     def f2(self,s,ass,i,t): # taux d'infecté par un infecté
-        k=self.alpha2/self.alpha1
-        return k*self.f1(s,ass,i,t) 
+        return self.f*self.f1(s,ass,i,t) 
 
     ####################################""
     def func(self,y,t):#S,beta,T_l,T_n): #Matrice de chaque stade
@@ -337,7 +342,8 @@ class SAsIQR:
     def plotSAsQI(self, data,timeSet):
     #Fig 1:  données + i + assy  
         fig, ax = plt.subplots()
-        line1,= plt.plot(data.date,data.Cases,c='orange',marker='*',label='it interpolation')
+        plt.grid(axis='x', color='0.95')
+        line1,= plt.plot(data.date,data.confirmed,c='orange',marker='*',label='it interpolation')
         line2,=ax.plot(timeSet,self.q,c='orange',label='q')
         line3,=ax.plot(timeSet,self.ass,label='ass')
         line4,=ax.plot(timeSet,self.i,label='i')
@@ -380,221 +386,121 @@ class SAsIQR:
         plt.show()
 
 
-# In[94]:
-# class opti:
-#      def __init__(self, model='corona', param=param, data=data):
-#         self.beta=beta#1./10#0.01 #taux de passage de l'etat asymptomatique a infecte
-#         self.tau1=tau1#0.0 # taux de mise en quarantaine
-#         self.tau2=tau2#0.0 # taux de mise en quarantaine
-   
-#         self.gama=gama#0.5 # taux de gerison des quaranteme
-#         self.mu=mu#0.4 # taux de mortalité des quarantene 
-        
-#         self.f=f
-#         self.alpha=alpha1
-#         self.alpha2=f*alpha1
-        
-#         self.confinement_hour=confinement_hour
-#         self.start_conf=start_conf
-#         self.efficacite_Conf=efficacite_Conf # %des personne qui ne respetent pas le confinement
-        
-        
-        
-#     def optFuncDim2(param,data):
-#         res=np.zeros(len(data.shape))
-#         ndp, nbatch = data.shape[0]
-#         time = data.xdata[0][:,0]
-#         y1data = data.ydata[0][:, 0] # cases
-#       #  y2data = data.ydata[1][:, 0] # death
-#       #  y3data = data.ydata[2][:, 0] # recovery
-#         xdata = data.xdata[0][:,0]#data.user_defined_object[0]
-#         #par=(param[0],param[1],param[2])
-#         corona.tau1=param[0]
-#         corona.tau2=param[1]
-    
-    
-#         corona.calSol(time,y0)
-    
-#         bb=1#param[4]
-#         ## l'optimisation est sur la base des i+ass+q
-#         # aa=q[(np.floor(timeSet)==timeSet)*(timeSet<len(ddata.date))]+ass[(np.floor(timeSet)==timeSet)*(timeSet<len(ddata.date))]+i[(np.floor(timeSet)==timeSet)*(timeSet<len(ddata.date))]
-#           ## l'optimisation est sur la base des i+q
-#         aa=corona.q#+corona.i
-#         dd=corona.d
-#         rr=corona.r
-#         res[0]= np.linalg.norm(aa-y1data)
-#        # res[1]=np.linalg.norm(dd-y2data)
-#      #   res[2]=np.linalg.norm(rr-y3data)
-#         return res
-    
-#     def optim(self)
-#         # initialize MCMC object
-#         mcstat = MCMC()
-#         # initialize data structure 
-#         #OPtFuncDim1
-#         # ydata=np.column_stack((ddata.Cases,ddata.cumDeath))
-#         # mcstat.data.add_data_set(x=ddata.date, y=ydata)#, user_defined_object=ddata.date)
-        
-#         mcstat.data.add_data_set(x=ddata.date[:27], y=ddata.Cases[:27],weight=10)#, user_defined_object=ddata.date)
-#         #mcstat.data.add_data_set(x=ddata.date[:27], y=ddata.cumDeath[:27],weight=0)#, user_defined_object=ddata.date)
-#         #mcstat.data.add_data_set(x=ddata.date[:27], y=ddata.cumRecover[:27],weight=0)#, user_defined_object=ddata.date)
-#         # initialize parameter array
-        
-#         # add model parameters
-#         mcstat.parameters.add_model_parameter(name='tau1', theta0=tau1, minimum=0.25,maximum=0.26, prior_mu=tau1, prior_sigma=0.1)
-#         mcstat.parameters.add_model_parameter(name='tau2', theta0=tau2, minimum=0.75,maximum=0.8,prior_mu=tau2,prior_sigma=0.01)
-#         #mcstat.parameters.add_model_parameter(name='efficacite_Conf', theta0=efficacite_Conf, minimum=efficacite_Conf*0.8,maximum=efficacite_Conf*1.2)
-         
-                                         
-#         # # initial values for the model states
-#         # mcstat.parameters.add_model_parameter(name='S0', theta0=0.77, minimum=0,
-#         #                                       maximum=np.inf, prior_mu=0.77,
-#         #                                       prior_sigma=2)
-#         # mcstat.parameters.add_model_parameter(name='I0', theta0=1.3, minimum=0,
-#         #                                       maximum=np.inf, prior_mu=1.3,
-#         #                                       prior_sigma=2)
-#         # mcstat.parameters.add_model_parameter(name='R0', theta0=10, minimum=0,
-#         #                                       maximum=np.inf, prior_mu=10,
-#         #                                       prior_sigma=2)
-        
-#         # Generate options
-#         mcstat.simulation_options.define_simulation_options(
-#             nsimu=1.5e+5, updatesigma=True)
-#         # Define model object:
-#         mcstat.model_settings.define_model_settings(
-#             sos_function=optFuncDim2)#,
-#          #   sigma2=0.05**2)#,
-#            # S20=np.array([1,1]))
-#            # N0=np.array([4,4,4]))
-#         mcstat.run_simulation()
-#     # Rerun starting from results of previous run
-#     #mcstat.simulation_options.nsimu = int(3e+4)
-#     #mcstat.run_simulation(use_previous_results=True)
-#     results = mcstat.simulation_results.results
-#     burnin = int(results['nsimu']/2)
-#     chain = results['chain'][burnin:, :]
-#     s2chain = results['s2chain'][burnin:, :]
-#     names = results['names'] # parameter names
-    
-#     # display chain stats
-#     mcstat.chainstats(chain, results)
-    
-#     from pymcmcstat import mcmcplot as mcp
-#     settings = dict(
-#         fig=dict(figsize=(7, 6))
-#     )
-#     # plot chain panel
-#     mcp.plot_chain_panel(chain, names, settings)
-#     # plot density panel
-#     mcp.plot_density_panel(chain, names, settings)
-#     # pairwise correlation
-#     f = mcp.plot_pairwise_correlation_panel(chain, names, settings)
 
+# In[93]:        
+class SIRU:
+    def __init__(self,dataset, S0=11791749,f=0.8,nu=1/7,eta=1/7, t_change =25):
+        self.S0 = S0
+        self.f = f
+        self.nu = nu
+        self.eta = eta
+        self.t_change = t_change
+        self.dataset =dataset
+        
+    def calc_params(self):
+        dat = data(self.dataset,self.t_change)
+        [x1,x2,x3,t0] = dat.estimation()
+        nu1 = self.f * self.nu
+        nu2 = (1-self.f) * self.nu
+        I0 = x3 *x2 /(self.f*self.eta)
+        tau = (x2+self.eta)*(self.nu+x2)/(self.S0*(nu2+self.eta+x2))
+        U0 =nu2*I0/(self.eta+x2)
+        R0 = 0
+        y0 = [self.S0,I0,R0,U0]
+        pars = [tau,self.nu,nu1,nu2,self.eta]
+        return y0, pars
+        
+    def model(self,y, t, paras):
 
-
-
-
+        S = y[0]
+        I = y[1]
+        R = y[2]
+        U = y[3]
+        
+        try:
+            tau = paras['tau'].value
+            nu = paras['nu'].value
+            nu1 = paras['nu1'].value
+            nu2 = paras['nu2'].value
+            eta = paras['eta'].value
+            mu = paras['mu'].value          
+        except KeyError:
+            tau, nu, nu1, nu2, eta, mu = paras
+                
+        def tauu(t,tau0):
+            if t<24:
+                to = tau0
+            else:
+                to= tau0*np.exp(-mu*(t-24))
+            return to
+        to = tauu(t,tau)
+        # the model equations
+        dS = -to * S * (I+U)
+        dI = to * S * (I+U) - nu * I
+        dR = nu1 * I - eta * R
+        dU = nu2 * I - eta * U
+        return [dS,dI,dR,dU]
     
-#     def predmodelfun(data,param):
-#         obj = data.xdata
-#         time = obj[0][:,0]
-#         xdata = obj
-#         # last 3 parameters are the initial states
-#         #y0 = np.array(q[-3:])
+    def g(self,t, y0, paras):
+        sol = integ.odeint(self.model, y0, t, args=(paras,))
+        return sol
+    def residual(self, paras , t, data):
+        y0, paras = self.calc_params()
+        mod = self.g(t, y0, paras)
+        x2_model = mod[:, 2]
+        return (x2_model - data).ravel()
+    def params_model(self):
+        y0,pars = self.calc_params()
+        params = Parameters()
+        params.add('tau', value=pars[0], vary=False)
+        params.add('nu', value=pars[1], vary=False)
+        params.add('nu1', value=pars[2], vary=False)
+        params.add('nu2', value=pars[3], vary=False)
+        params.add('eta', value=pars[4], vary=False)
+        params.add('mu', value=0.05)
+        return params
+    def integrate(self):
+        y0,pars = self.calc_params()
+        params = self.params_model()
+        dat = data(self.dataset,self.t_change)
+        [x1,x2,x3,t0] = dat.estimation()
+        t0 = int(round(t0))
+        t_int = list(range(len(dat.confirmed)-t0))
+        t = list(range(200))
+        dat = data(self.dataset,self.t_change)
+        t_model,fit,obs1 =dat.get_fit()
+        result = op.minimize(self.residual, params, args=(t_int, obs1), method='L-BFGS-B')  
+        data_fitted = self.g(t, y0, result.params)
+        return data_fitted , t , t_int
     
-#         corona.tau1=param[0]
-#         corona.tau2=param[1]
+    def plot_fit_data(self):
+        data_fitted, t, t_int = self.integrate()
+        dat = data(self.dataset,self.t_change)
+        [x1,x2,x3,t0] = dat.estimation()
+        t0 = int(round(t0))
+        dd = dat.confirmed
+        obs1 = [0] * len(t_int)
+        if t0>0:  
+            for i in range(len(dd)-t0):
+                obs1[i] = dd[i+t0]
+        elif t0<0:
+            for i in range(len(dd)):
+                obs1[i-t0] = dd[i]
+        else:
+            obs1=dd
+        
+        plt.scatter(t_int, obs1, marker='o', color='b', label='Observations')
+        plt.plot(t_int, data_fitted[:len(t_int),2] , '-', linewidth=2, color='black', label='fitted reported symptomatic')
+        plt.scatter(t_int, data_fitted[:len(t_int),3] , marker='o', color='r', label='unreported symptomatic')
+        plt.legend()
+        plt.xlim([0, max(t_int)])
+        plt.show()
     
-#         # evaluate model
-#         #ymodel = np.zeros([time.size, 3])
-#         tmodel, ymodel = corona.calSol(time,y0)
-#         return ymodel
-    
-#     def plotResult()
-    
-#         mcstat.PI.setup_prediction_interval_calculation(
-#             results=results,
-#             data=mcstat.data,
-#             modelfunction=predmodelfun)
+    def plot_pred(self):
+        data_fitted, t, t_int = self.integrate()
+        plt.plot(t, data_fitted[:,2] , '-', linewidth=2, color='black', label='fitted reported symptomatic')
+        plt.plot(t, data_fitted[:,3] , '-', linewidth=2, color='r', label='unreported symptomatic')
+        plt.legend()
+        plt.xlim([0, max(t)])
+        plt.show()      
         
-#         mcstat.PI.generate_prediction_intervals(
-#             nsample=500,
-#             calc_pred_int=True,
-#             waitbar=True)
-        
-        
-#         # plot prediction intervals
-#         fighandle, axhandle = mcstat.PI.plot_prediction_intervals(
-#             adddata=False,
-#             addlegend=False,
-#             figsizeinches=[7.5, 8])
-#         for ii in range(1):
-#             axhandle[ii].plot(mcstat.data.ydata[0][:, 0],
-#                             #  mcstat.data.ydata[0][:, ii + 1],
-#                               'ko', mfc='none', label='data')
-#             axhandle[ii].set_ylabel('')
-#             #axhandle[ii].set_title(ylbls[ii + 1][0])
-#             axhandle[ii].legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-#         axhandle[-1].set_xlabel('days');
-    
-#      # plor result    
-#         tmax=40
-#         timeSet=np.arange(ddata.t0,tmax,dt)
-        
-#         param=[[0.25,0.77],[0.251,0.775],[0.252,0.78]]
-#         #print('(beta, efficacite_Conf,tau2)= (%.4f,%.4f,%.4f)' % (results['mean'][0],results['mean'][1],results['mean'][2]))
-#         print('(alpha, beta)= (%.4f,%.4f)' % (results['mean'][0],results['mean'][1]))
-        
-#         ress=[]
-        
-#         for i in np.arange(len(param)):
-#             tau1=param[i][0]#0.0 # taux de mise en quarantaine pour les infectes
-#             tau2=param[i][1]
-#             tau=tau2/tau1
-    
-#             p=0.2
-#             mu=p*mu
-#             gama=(1-p)*mu+gama
-        
-#             h0=ddata.chi2*ddata.chi3/tau1  
-        
-#             ass0=h0*(ddata.chi2+tau2+gama1)/(ddata.chi2+tau2+beta*tau+gama1)
-        
-#             i0= beta*h0/(ddata.chi2+tau2+beta*tau+gama1)
-#             q0=0#tau1*h0/(ddata.chi2+gama1)
-#             d0=0
-#             r0=0
-#             s0=ddata.popNumber-(ass0+i0+q0+d0+r0)#1.-(ass0+i0+q0+d0+r0) #if s<0.2 else 0
-        
-#             corona.alpha=(ddata.chi2+beta+tau1)/((3*beta/(ddata.chi2+tau2+gama1)+1)*s0)
-#             y0=[s0,ass0,i0,q0,d0,r0]
-            
-#             time,res= corona.calSol(timeSet,y0)
-#             ress.append(np.array([param[i][0],param[i][1],corona.q]))
-            
-        
-#         fig, ax = plt.subplots()
-#         ax.grid(True)
-#         line1,= plt.plot(ddata.date[:tmax],ddata.Cases[:tmax],c='orange',marker='*',label='TUN interpolation')
-#         #line2,=ax.plot(timeSet,res[:,2])
-#         #line3,=ax.plot(timeSet,res1[:,2])
-#         ax.fill_between(timeSet,ress[2][2],ress[0][2],alpha=0.2)
-#         line3,=ax.plot(timeSet,ress[1][2],label='q(t)')
-        
-#         #plt.axvline(timeSet[(timeSet<19+dt) * (timeSet>19)], color='black', linestyle='-.', alpha=.5)
-#         #plt.axvline(timeSet[(timeSet<24+dt) * (timeSet>24)], color='black', linestyle='-.', alpha=.5)
-        
-#         ax.text( 1, 6,
-#                 '6PM-6AM curfew ',
-#                   rotation=90,
-#                   horizontalalignment='center',
-#                   verticalalignment='top',
-#                   multialignment='center',
-#               size=10)
-#         plt.xlabel(r'time in day',fontsize=12)
-#         plt.ylabel(r"population density",fontsize=12)
-#         #plt.title()
-#         ax.legend(loc='upper left')
-#         #plt.savefig('../results/fig111.png', transparent=True)
-#         plt.show()
-            
