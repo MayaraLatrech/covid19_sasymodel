@@ -27,10 +27,8 @@ from sklearn.metrics import r2_score, mean_squared_error, explained_variance_sco
 from sklearn.model_selection import train_test_split 
 from sklearn import linear_model
 
-
-
-
 import os
+
 from pymcmcstat.MCMC import MCMC
 from pymcmcstat.plotting import MCMCPlotting
 import pymcmcstat
@@ -41,8 +39,20 @@ from pymcmcstat import propagation as up
 
 from lmfit import Parameters
 
+
+from distutils.core import setup
+
+
+
 # In[2]: Data input 
 
+#setup(name='Covid models',
+#      version='1.0',
+#      description='Python Distribution Utilities',
+#      author=' slimane ben miled & mayara latrach',
+#      author_email='slimane.benmiled@fst.utm.tn,mayara.elatrach@etudiant-enit.utm.tn ',
+#      url='https://github.com/MayaraLatrech/covid19_sasymodel.git'
+#     )
 
 class data:   
     def __init__(self,data,N=11791749, t_change =25):
@@ -93,12 +103,15 @@ class data:
     
     def plotData(self):
         #recov = self.Total - (self.Cases -self.Deaths)
+        plt.grid(axis='x', color='0.95')
         plt.plot(self.confirmed,"b-")
         plt.plot(self.deaths,"r-")
         plt.plot(self.recovered,"g-")
         plt.legend(["Confirmed cases","Deaths","Recovered"])
         plt.show()
-        
+   
+   
+    
     def CR(self,t, x1, x2, x3):
             res = [0]*len(t)
             for i in range(len(t)):
@@ -204,6 +217,7 @@ class data:
         
     def plot_CR(self):
         t_model,fit,obs1 = self.get_fit()
+        plt.grid(axis='x', color='0.95')
         plt.plot(t_model, fit, '-', linewidth=2, label='fitted CR')
         plt.scatter(t_model, obs1, marker='*', color='orange', label='Observations')
         plt.legend()
@@ -220,6 +234,7 @@ class data:
         for i in range(len(t_model)):
             log_fit[i] = np.log(fit[i] +x3)
             log_obs[i] = np.log(obs1[i])
+        plt.grid(axis='x', color='0.95')
         plt.plot(t_model, log_fit, '-', linewidth=2,  label='fitted log CR')
         plt.scatter(t_model, log_obs , marker='*', color='orange', label='log Observations')
         plt.legend()
@@ -265,7 +280,7 @@ class SAsIQR:
         self.efficacite_Conf=efficacite_Conf # %des personne qui ne respetent pas le confinement
         
     ###################################
-    def calc_params(self,database, t_change):
+    def calc_params(self,database):
         ## in this par we evaluate the parameter of the model using the method of @article{Liu2020}
         #author = {Liu, Zhihua and Magal, Pierre and Seydi, Ousmane and Webb, Glenn},
         #journal = {Biology},
@@ -290,7 +305,7 @@ class SAsIQR:
         #param=(beta,tau1,tau2) 
         y0=[s0,ass0,i0,q0,d0,r0]
         res=[self.alpha1]
-        return y0, res
+        return y0,t0 ,res
 
     #####################   
     def f1(self,s,ass,i,t): # taux d'infecté par un assym 
@@ -302,7 +317,7 @@ class SAsIQR:
             if ( (tt>=(1-self.confinement_hour/24))):
                b=self.alpha1*(1-self.efficacite_Conf)   
             else:
-               b=self.alpha1*0.01
+               b=self.alpha1*0.02
         else:
             b=self.alpha1
         y=float(b*s)
@@ -375,8 +390,8 @@ class SAsIQR:
     def plotRD(self, data,timeSet):
    # Fig 3:  R et D
         fig, ax = plt.subplots()
-        line1,= plt.plot(data.date,data.cumDeath,c='orange',marker='*' ,label='death')
-        line2,= plt.plot(data.date,data.cumRecover,c='green',marker='+' ,label='recovered')
+        line1,= plt.plot(data.date,data.deaths,c='orange',marker='*' ,label='death')
+        line2,= plt.plot(data.date,data.recovered,c='green',marker='+' ,label='recovered')
         line5,=ax.plot(timeSet,self.d,c='orange',label='d')
         line6,=ax.plot(timeSet,self.r,c='green',label='r')
         plt.xlabel('time in  day',fontsize=12)
@@ -409,47 +424,50 @@ class SIRU:
         y0 = [self.S0,I0,R0,U0]
         pars = [tau,self.nu,nu1,nu2,self.eta]
         return y0, pars
+    def SIRU_mod(self, t_to_pred=200):
         
-    def model(self,y, t, paras):
-
-        S = y[0]
-        I = y[1]
-        R = y[2]
-        U = y[3]
-        
-        try:
-            tau = paras['tau'].value
-            nu = paras['nu'].value
-            nu1 = paras['nu1'].value
-            nu2 = paras['nu2'].value
-            eta = paras['eta'].value
-            mu = paras['mu'].value          
-        except KeyError:
-            tau, nu, nu1, nu2, eta, mu = paras
-                
-        def tauu(t,tau0):
-            if t<24:
-                to = tau0
-            else:
-                to= tau0*np.exp(-mu*(t-24))
-            return to
-        to = tauu(t,tau)
-        # the model equations
-        dS = -to * S * (I+U)
-        dI = to * S * (I+U) - nu * I
-        dR = nu1 * I - eta * R
-        dU = nu2 * I - eta * U
-        return [dS,dI,dR,dU]
+        def model(y, t, paras):
     
-    def g(self,t, y0, paras):
-        sol = integ.odeint(self.model, y0, t, args=(paras,))
-        return sol
-    def residual(self, paras , t, data):
-        y0, paras = self.calc_params()
-        mod = self.g(t, y0, paras)
-        x2_model = mod[:, 2]
-        return (x2_model - data).ravel()
-    def params_model(self):
+            S = y[0]
+            I = y[1]
+            R = y[2]
+            U = y[3]
+            
+            try:
+                tau = paras['tau'].value
+                nu = paras['nu'].value
+                nu1 = paras['nu1'].value
+                nu2 = paras['nu2'].value
+                eta = paras['eta'].value
+                mu = paras['mu'].value          
+            except KeyError:
+                tau, nu, nu1, nu2, eta, mu = paras
+            
+            #tau = paras[0]
+            #nu = paras[1]
+            #nu1 = paras[2]
+            #nu2 = paras[3]
+            #eta = paras[4]
+                    
+            def tauu(t,tau0):
+                if t<24:
+                    to = tau0
+                else:
+                    to= tau0*np.exp(-mu*(t-24))
+                return to  
+            
+            to = tauu(t,tau)
+            # the model equations
+            dS = -to * S * (I+U)
+            dI = to * S * (I+U) - nu * I
+            dR = nu1 * I - eta * R
+            dU = nu2 * I - eta * U
+            return [dS,dI,dR,dU]
+        
+        def g(t, y0, paras):
+            sol = integ.odeint(model, y0, t, args=(paras,))
+            return sol
+        
         y0,pars = self.calc_params()
         params = Parameters()
         params.add('tau', value=pars[0], vary=False)
@@ -457,27 +475,21 @@ class SIRU:
         params.add('nu1', value=pars[2], vary=False)
         params.add('nu2', value=pars[3], vary=False)
         params.add('eta', value=pars[4], vary=False)
-        params.add('mu', value=0.05)
-        return params
-    def integrate(self):
-        y0,pars = self.calc_params()
-        params = self.params_model()
+        params.add('mu', value=0.09)
+        
+        t = list(range(t_to_pred))
+    
+        
+        result = integ.odeint(model, y0, t, args=(params,))
+        
+        return result
+    
+    def plot_fit_data(self, t_to_pred=200):
+        data_fitted = self.SIRU_mod(t_to_pred)
         dat = data(self.dataset,self.t_change)
         [x1,x2,x3,t0] = dat.estimation()
         t0 = int(round(t0))
         t_int = list(range(len(dat.confirmed)-t0))
-        t = list(range(200))
-        dat = data(self.dataset,self.t_change)
-        t_model,fit,obs1 =dat.get_fit()
-        result = op.minimize(self.residual, params, args=(t_int, obs1), method='L-BFGS-B')  
-        data_fitted = self.g(t, y0, result.params)
-        return data_fitted , t , t_int
-    
-    def plot_fit_data(self):
-        data_fitted, t, t_int = self.integrate()
-        dat = data(self.dataset,self.t_change)
-        [x1,x2,x3,t0] = dat.estimation()
-        t0 = int(round(t0))
         dd = dat.confirmed
         obs1 = [0] * len(t_int)
         if t0>0:  
@@ -489,18 +501,38 @@ class SIRU:
         else:
             obs1=dd
         
-        plt.scatter(t_int, obs1, marker='o', color='b', label='Observations')
-        plt.plot(t_int, data_fitted[:len(t_int),2] , '-', linewidth=2, color='black', label='fitted reported symptomatic')
-        plt.scatter(t_int, data_fitted[:len(t_int),3] , marker='o', color='r', label='unreported symptomatic')
+        #t_int = list(range(len(obs1)))
+        t = list(range(t_to_pred))
+        plt.grid(axis='x', color='0.95')
+        plt.scatter(t_int, obs1, marker='x', color='orange', label='Observations')
+        plt.plot(t_int, data_fitted[:len(t_int),2] , label='fitted reported symptomatic')
+        plt.plot(t_int, data_fitted[:len(t_int),3] ,  color='r', label='unreported symptomatic')
         plt.legend()
         plt.xlim([0, max(t_int)])
         plt.show()
     
-    def plot_pred(self):
-        data_fitted, t, t_int = self.integrate()
-        plt.plot(t, data_fitted[:,2] , '-', linewidth=2, color='black', label='fitted reported symptomatic')
-        plt.plot(t, data_fitted[:,3] , '-', linewidth=2, color='r', label='unreported symptomatic')
+    def plot_pred(self, t_to_pred=200):
+        data_fitted= self.SIRU_mod(t_to_pred)
+        dat = data(self.dataset,self.t_change)
+        [x1,x2,x3,t0] = dat.estimation()
+        t0 = int(round(t0))
+        t_int = list(range(len(dat.confirmed)-t0))
+        dd = dat.confirmed
+        obs1 = [0] * len(t_int)
+        if t0>0:  
+            for i in range(len(dd)-t0):
+                obs1[i] = dd[i+t0]
+        elif t0<0:
+            for i in range(len(dd)):
+                obs1[i-t0] = dd[i]
+        else:
+            obs1=dd
+        
+        t = list(range(t_to_pred))
+        plt.grid(axis='x', color='0.95')
+        plt.scatter(t_int, obs1, marker='x', color='orange', label='Observations')
+        plt.plot(t, data_fitted[:,2] , label='fitted reported symptomatic')
+        plt.plot(t, data_fitted[:,3] , color='r', label='unreported symptomatic')
         plt.legend()
         plt.xlim([0, max(t)])
         plt.show()      
-        
